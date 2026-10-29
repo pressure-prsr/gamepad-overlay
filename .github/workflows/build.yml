@@ -25,4 +25,34 @@ jobs:
         with:
           name: Gamepad-Overlay-exe
           path: gamepad-overlay-pc/dist/*.exe
+      - name: Smoke test (run the exe)
+        working-directory: gamepad-overlay-pc
+        shell: pwsh
+        run: |
+          $env:GAMEPAD_OVERLAY_TEST = "1"
+          $exe = Get-ChildItem dist/*.exe | Select-Object -First 1
+          $p = Start-Process -FilePath $exe.FullName -PassThru
+          $h = $null
+          for ($i = 0; $i -lt 40; $i++) {
+            Start-Sleep -Seconds 2
+            try { $h = Invoke-RestMethod http://127.0.0.1:3000/health -TimeoutSec 3; break } catch {}
+          }
+          if (-not $h) { throw "FAIL: app did not answer on localhost:3000" }
+          Write-Host "health:" ($h | ConvertTo-Json -Compress)
+          if (-not $h.xinput) { throw "FAIL: XInput did not load: $($h.error)" }
+          Start-Sleep -Seconds 1
+          $h = Invoke-RestMethod http://127.0.0.1:3000/health
+          if ($h.error) { throw "FAIL: XInput error: $($h.error)" }
+          if ($h.polls -lt 1) { throw "FAIL: XInput never polled" }
+          $panel = Invoke-WebRequest http://127.0.0.1:3000/ -UseBasicParsing
+          if ($panel.Content -notmatch "Gamepad Overlay") { throw "FAIL: panel page is wrong" }
+          $ov = Invoke-WebRequest http://127.0.0.1:3000/o/prsr-green -UseBasicParsing
+          if ($ov.Content -notmatch 'src="/shim.js"') { throw "FAIL: overlay has no shim" }
+          if ($ov.Content.Length -lt 100000) { throw "FAIL: overlay looks truncated" }
+          $shim = Invoke-WebRequest http://127.0.0.1:3000/shim.js -UseBasicParsing
+          if ($shim.Content -notmatch "getGamepads") { throw "FAIL: shim.js is wrong" }
+          $ev = (curl.exe -s -N --max-time 3 http://127.0.0.1:3000/events) | Out-String
+          if ($ev -notmatch 'data: \{"c":') { throw "FAIL: /events sent no data" }
+          Write-Host "ALL CHECKS PASSED"
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
           
