@@ -1,0 +1,28 @@
+name: Build Windows app
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Unpack newest zip
+        shell: pwsh
+        run: |
+          $z = Get-ChildItem gamepad-overlay-pc-*.zip | Sort-Object Name -Descending | Select-Object -First 1
+          Expand-Archive -Path $z.FullName -DestinationPath . -Force
+      - name: Install
+        working-directory: gamepad-overlay-pc
+        run: npm install
+      - name: Build exe
+        working-directory: gamepad-overlay-pc
+        run: npx electron-builder --win portable --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gamepad-Overlay-exe
+          path: gamepad-overlay-pc/dist/*.exe
+          
