@@ -55,4 +55,4 @@ jobs:
           if ($ev -notmatch 'data: \{"c":') { throw "FAIL: /events sent no data" }
           Write-Host "ALL CHECKS PASSED"
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-          
+          exit 0
